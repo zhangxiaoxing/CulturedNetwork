@@ -4,11 +4,10 @@
  */
 package iodegree.lib.reci;
 
-import iodegree.lib.D;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import org.apache.commons.math3.random.Well44497b;
+import java.util.Random;
 
 /**
  *
@@ -16,39 +15,32 @@ import org.apache.commons.math3.random.Well44497b;
  */
 public class ReciCalc {
 
-    public ReciCalc(String path) {
-        pathToFile = path;
-        db = new ReciDB(pathToFile);
-        r = new Well44497b();
-        binSize = 50;
-        connMap = new HashMap<>(1000);
-        slotMap = new HashMap<>(1000);
-        slots = db.getSlots();
-        conns = db.getConns();
-        init();
-    }
     String pathToFile;
-    Well44497b r;
-    private int binSize;
-    private ReciDB db;
-    private HashMap<Integer, Integer> connMap;
-    private HashMap<Integer, Integer> slotMap;
+    Random r;
+    final private ReciDB db;
+
     private HashSet<Integer> keySet;
     private HashMap<Integer, Integer> connMapMaster;
     private HashMap<Integer, Integer> slotMapMaster;
     ArrayList<PotentialSynapse> slots;
     ArrayList<PotentialSynapse> conns;
 
-//    private boolean connected(boolean fwdGlu, boolean revGlu, int div, double dist) {
-    private boolean connected(int key) {
+    public ReciCalc(String path) {
+        pathToFile = path;
+        db = new ReciDB(pathToFile);
+        r = new Random();
+        slots = db.getSlots();
+        conns = db.getConns();
+        init();
+    }
+
+    private boolean connected(int key, HashMap<Integer, Integer> connMap, HashMap<Integer, Integer> slotMap) {
         double prob = r.nextDouble();
-//        int key = getKey(fwdGlu, revGlu, div, dist);
         if (connMap.containsKey(key)) {
             int connLeft = connMap.get(key);
             int slotLeft = slotMap.get(key);
             double luck = (double) connLeft / slotLeft;
-//            D.tp(luck+","+prob);
-            return luck > prob ? true : false;
+            return luck > prob;
         } else {
             return false;
         }
@@ -56,37 +48,65 @@ public class ReciCalc {
 
     private void init() {
         //Globally defined
-        //ArrayList<PotentialSynapse> slots = db.getSlots();
         slotMapMaster = new HashMap<>(100);
         connMapMaster = new HashMap<>(100);
+
+        int[][] slotMap = new int[12][7];
+        int[][] connMap = new int[12][7];
+
         keySet = new HashSet<>(100);
         for (PotentialSynapse ps : slots) {
             int key = getKey(ps.getFwdGlu(), ps.getRevGlu(), ps.getDiv(), ps.getDist());
             keySet.add(key);
+            slotMap[yPos(ps.getFwdGlu(), ps.getRevGlu(), ps.getDiv())][getDistBin(ps.getDist())]++;
+
             if (slotMapMaster.containsKey(key)) {
-                int newValue = slotMapMaster.get(key) + 1;
-                slotMapMaster.put(key, newValue);
+                slotMapMaster.put(key, slotMapMaster.get(key) + 1);
             } else {
                 slotMapMaster.put(key, 1);
             }
         }
 
-
         for (PotentialSynapse conn : conns) {
             int key = getKey(conn.getFwdGlu(), conn.getRevGlu(), conn.getDiv(), conn.getDist());
-//            D.tp("in" + key);
+            connMap[yPos(conn.getFwdGlu(), conn.getRevGlu(), conn.getDiv())][getDistBin(conn.getDist())]++;
             if (connMapMaster.containsKey(key)) {
-                int newValue = connMapMaster.get(key) + 1;
-                connMapMaster.put(key, newValue);
+                connMapMaster.put(key, connMapMaster.get(key) + 1);
             } else {
                 connMapMaster.put(key, 1);
             }
+        }
+        for (int y = slotMap.length - 1; y >= 0; y--) {
+            for (int x = 0; x < slotMap[0].length; x++) {
+                System.out.print(connMap[y][x]);
+                System.out.print("\t");
+            }
+            System.out.print("\n");
+        }
+        System.out.println("===================");
+        for (int y = slotMap.length - 1; y >= 0; y--) {
+            for (int x = 0; x < slotMap[0].length; x++) {
+                System.out.print(slotMap[y][x]);
+                System.out.print("\t");
+            }
+            System.out.print("\n");
+        }
+
+    }
+
+    private int yPos(boolean preGlu, boolean postGlu, int div) {
+        if (preGlu && postGlu) {
+            return (div - 5);
+        } else if (preGlu != postGlu) {
+            return div - 1;
+        } else {
+            return div + 3;
         }
     }
 
     private int getKey(boolean fwdGlu, boolean revGlu, int div, double dist) {
         int key = 0;
-        int bin = (int) dist / binSize;
+        int bin = getDistBin(dist);
         key += (fwdGlu ? 0 : 1) << 14;
         key += (revGlu ? 0 : 1) << 12;
         key += div << 6;
@@ -94,15 +114,29 @@ public class ReciCalc {
         return key;
     }
 
+    private int getDistBin(double dist) {
+        double[] bins = {50, 100, 150, 200, 250, 350, 550};
+        for (int i = 0; i < bins.length; i++) {
+            if (dist < bins[i]) {
+                return i;
+            }
+        }
+        throw new IllegalArgumentException("Uncatched distance");
+    }
+
     private int getKey(int id1, int id2) {
         return (id1 << 12) + id2;
     }
 
     public int[] randReci() {
+        HashMap<Integer, Integer> connMap;
+        HashMap<Integer, Integer> slotMap;
+        connMap = new HashMap<>(1000);
+        slotMap = new HashMap<>(1000);
         for (Integer key : keySet) {
-            slotMap.put(key, slotMapMaster.get(key) + 0);
+            slotMap.put(key, slotMapMaster.get(key));
             if (connMapMaster.containsKey(key)) {
-                connMap.put(key, connMapMaster.get(key) + 0);
+                connMap.put(key, connMapMaster.get(key));
             }
         }
 
@@ -112,13 +146,9 @@ public class ReciCalc {
 
         for (PotentialSynapse ps : slots) {
             int mapKey = getKey(ps.getFwdGlu(), ps.getRevGlu(), ps.getDiv(), ps.getDist());
-//            D.tpi(mapKey);
-            if (connected(mapKey)) {
-//                D.tpi(connMap.get(mapKey));
+            if (connected(mapKey, connMap, slotMap)) {
                 connMap.put(mapKey, connMap.get(mapKey) - 1);
-//                D.tpi(connMap.get(mapKey));
                 int setKey = getKey(ps.getId1(), ps.getId2());
-//                D.tp(key);
                 if (ps.getId1() < ps.getId2()) {
                     fwdConnMap.add(setKey);
                     if (ps.getFwdGlu() && ps.getRevGlu()) {
@@ -132,15 +162,11 @@ public class ReciCalc {
                     revConnMap.add(getKey(ps.getId2(), ps.getId1()));
                 }
             }
-//            D.tpi(slotMap.get(mapKey));
             slotMap.put(mapKey, slotMap.get(mapKey) - 1);
-//            D.tp(slotMap.get(mapKey));
-
         }
         int[] reciCount = new int[3];
 
         for (int i : fwdConnMap) {
-//            D.hit();
             if (revConnMap.contains(i)) {
                 reciCount[typeMap.get(i)]++;
             }
