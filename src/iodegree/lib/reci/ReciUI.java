@@ -7,7 +7,10 @@ package iodegree.lib.reci;
 import iodegree.lib.MyTableModel;
 import iodegree.lib.CommonsLib;
 import iodegree.lib.reci.ReciCalc;
+import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
 import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 /**
@@ -195,24 +198,31 @@ public class ReciUI extends javax.swing.JFrame {
         }
         int cycles = Integer.parseInt(txtCycles.getText());
         for (int i = 0; i < cycles; i++) {
-            for (int j = 0; j < 3; j++) {
-                int[] expReciCount = reci.randReci();
-                stats[j].addValue(expReciCount[j]);
+            double[][] expReciCount = reci.randReci();
+            try (BufferedWriter bw = new BufferedWriter(new FileWriter("H:\\RECI" + i + ".csv"))) {
+                for (int row = 0; row < expReciCount.length; row++) {
+                    for (int col = 0; col < expReciCount[0].length-1; col++) {
+                        bw.write(expReciCount[row][col] + ",");
+                    }
+                    bw.write(expReciCount[row][expReciCount[0].length-1] + "\n");
+                }
+            } catch (IOException ioe) {
+                System.out.println(ioe.toString());
             }
         }
-        Object[][] tabData = new Object[5][3];
-        tabData[0][0] = "Glu";
-        tabData[0][1] = "Mixed";
-        tabData[0][2] = "GABA";
-        for (int i = 0; i < 3; i++) {
-            tabData[1][i] = obsReciCount[i];
-            tabData[2][i] = stats[i].getMean();
-            tabData[3][i] = stats[i].getStandardDeviation();
-            tabData[4][i] = stats[i].getStandardDeviation() / Math.sqrt(cycles);
-        }
-        MyTableModel tabModel = new MyTableModel(tabData);
-        resultPane.setColumnHeaderView(null);
-        resultTableReci.setModel(tabModel);
+//        Object[][] tabData = new Object[5][3];
+//        tabData[0][0] = "Glu";
+//        tabData[0][1] = "Mixed";
+//        tabData[0][2] = "GABA";
+//        for (int i = 0; i < 3; i++) {
+//            tabData[1][i] = obsReciCount[i];
+//            tabData[2][i] = stats[i].getMean();
+//            tabData[3][i] = stats[i].getStandardDeviation();
+//            tabData[4][i] = stats[i].getStandardDeviation() / Math.sqrt(cycles);
+//        }
+//        MyTableModel tabModel = new MyTableModel(tabData);
+//        resultPane.setColumnHeaderView(null);
+//        resultTableReci.setModel(tabModel);
     }//GEN-LAST:event_btnGenRndM1ActionPerformed
 
     private void txtCyclesActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtCyclesActionPerformed

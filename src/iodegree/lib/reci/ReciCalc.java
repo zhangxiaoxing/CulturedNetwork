@@ -59,7 +59,6 @@ public class ReciCalc {
             int key = getKey(ps.getFwdGlu(), ps.getRevGlu(), ps.getDiv(), ps.getDist());
             keySet.add(key);
             slotMap[yPos(ps.getFwdGlu(), ps.getRevGlu(), ps.getDiv())][getDistBin(ps.getDist())]++;
-
             if (slotMapMaster.containsKey(key)) {
                 slotMapMaster.put(key, slotMapMaster.get(key) + 1);
             } else {
@@ -76,31 +75,44 @@ public class ReciCalc {
                 connMapMaster.put(key, 1);
             }
         }
-        for (int y = slotMap.length - 1; y >= 0; y--) {
-            for (int x = 0; x < slotMap[0].length; x++) {
-                System.out.print(connMap[y][x]);
-                System.out.print("\t");
-            }
-            System.out.print("\n");
-        }
-        System.out.println("===================");
-        for (int y = slotMap.length - 1; y >= 0; y--) {
-            for (int x = 0; x < slotMap[0].length; x++) {
-                System.out.print(slotMap[y][x]);
-                System.out.print("\t");
-            }
-            System.out.print("\n");
-        }
+//        for (int y = slotMap.length - 1; y >= 0; y--) {
+//            for (int x = 0; x < slotMap[0].length; x++) {
+//                System.out.print(connMap[y][x]);
+//                System.out.print("\t");
+//            }
+//            System.out.print("\n");
+//        }
+//        System.out.println("===================");
+//        for (int y = slotMap.length - 1; y >= 0; y--) {
+//            for (int x = 0; x < slotMap[0].length; x++) {
+//                System.out.print(slotMap[y][x]);
+//                System.out.print("\t");
+//            }
+//            System.out.print("\n");
+//        }
 
     }
 
     private int yPos(boolean preGlu, boolean postGlu, int div) {
+        //Y:0-11:GluGluD5-D8,GluGABAD5-D8,GABAGABAD5-D8
+        
         if (preGlu && postGlu) {
             return (div - 5);
         } else if (preGlu != postGlu) {
             return div - 1;
         } else {
             return div + 3;
+        }
+    }
+
+    private int yPos(int type, int div) {
+        switch (type) {
+            case 0:
+                return div + 3;
+            case 1:
+                return div - 1;
+            default:
+                return div - 5;
         }
     }
 
@@ -128,7 +140,7 @@ public class ReciCalc {
         return (id1 << 12) + id2;
     }
 
-    public int[] randReci() {
+    public double[][] randReci() {
         HashMap<Integer, Integer> connMap;
         HashMap<Integer, Integer> slotMap;
         connMap = new HashMap<>(1000);
@@ -140,38 +152,43 @@ public class ReciCalc {
             }
         }
 
-        HashMap<Integer, Integer> typeMap = new HashMap<>(1000);
-        HashSet<Integer> fwdConnMap = new HashSet<>(1000);
+        HashMap<Integer, int[]> fwdConnMap = new HashMap<>(1000);
         HashSet<Integer> revConnMap = new HashSet<>(1000);
 
+        int[][] reciConn = new int[12][7];
+        int[][] reciSlot = new int[12][7];
+        double[][] reciProb = new double[12][7];
+
         for (PotentialSynapse ps : slots) {
+            if (ps.getId1() < ps.getId2()) {
+                reciSlot[yPos(ps.getFwdGlu(), ps.getRevGlu(), ps.getDiv())][getDistBin(ps.getDist())]++;
+            }
             int mapKey = getKey(ps.getFwdGlu(), ps.getRevGlu(), ps.getDiv(), ps.getDist());
             if (connected(mapKey, connMap, slotMap)) {
                 connMap.put(mapKey, connMap.get(mapKey) - 1);
                 int setKey = getKey(ps.getId1(), ps.getId2());
                 if (ps.getId1() < ps.getId2()) {
-                    fwdConnMap.add(setKey);
-                    if (ps.getFwdGlu() && ps.getRevGlu()) {
-                        typeMap.put(setKey, 0);
-                    } else if (ps.getFwdGlu() || ps.getRevGlu()) {
-                        typeMap.put(setKey, 1);
-                    } else {
-                        typeMap.put(setKey, 2);
-                    }
+                    fwdConnMap.put(setKey, new int[]{(ps.getFwdGlu() ? 1 : 0) + (ps.getRevGlu() ? 1 : 0), ps.getDiv(), getDistBin(ps.getDist())});
                 } else {
                     revConnMap.add(getKey(ps.getId2(), ps.getId1()));
                 }
             }
             slotMap.put(mapKey, slotMap.get(mapKey) - 1);
         }
-        int[] reciCount = new int[3];
 
-        for (int i : fwdConnMap) {
+        for (int i : fwdConnMap.keySet()) {
             if (revConnMap.contains(i)) {
-                reciCount[typeMap.get(i)]++;
+                reciConn[yPos(fwdConnMap.get(i)[0], fwdConnMap.get(i)[1])][fwdConnMap.get(i)[2]]++;
             }
         }
-        return reciCount;
+
+        for (int i = 0; i < reciProb.length; i++) {
+            for (int j = 0; j < reciProb[0].length; j++) {
+                reciProb[i][j] = (double) reciConn[i][j] / reciSlot[i][j];
+            }
+        }
+        return reciProb;
+
     }
 
     public int[] countReci() {
